@@ -26,6 +26,9 @@ int main(int argc, char* argv[])
     pthread_t threads[num_threads];
 
     int counts[num_threads];
+    
+    time_t beginning, end;
+    time(&beginning);
 
     for (int i = 0; i < num_threads; i++)
     {
@@ -45,9 +48,12 @@ int main(int argc, char* argv[])
     }
  
     double pi = approx_pi(total_count, points_per_thread * num_threads);
-    printf("pi ~ %f\n\n", pi);
+    
+    time(&end);
 
     print_counts(counts, num_threads);
+
+    printf("\npi ~ %f\nTime elapsed: %dms", pi, (int)(end - beginning));
 
     return 0;
 }
