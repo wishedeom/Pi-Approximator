@@ -7,53 +7,74 @@
  *  how many points are in a circle of radius 1/2 to the total number of points.
  */
 
-#include <pthread.h>
+#include <mpi.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 #include <time.h>
 
-const int num_threads = 10;
-const int points_per_thread = 1000000;
+const int total_points = 1000000;
+const int master = 0;
 
 double approx_pi(int inside, int total);
-double rand_norm(void);
-void *throw_darts(void *count);
-void print_counts(int counts[], int n);
+struct timeval current_timeval(void);
+long timeval_diff_us(struct timeval *begin, struct timeval *end);
+double rand_coord(void);
 
-int main(int argc, char* argv[])
+
+int main(int argc, char *argv[])
 {
-    srand((unsigned int) time(NULL));
-    pthread_t threads[num_threads];
+    int rank,       // 0 for master, other for worker
+        num_tasks;
 
-    int counts[num_threads];
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &num_tasks);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    srand(rank | time(NULL));
     
-    time_t beginning, end;
-    time(&beginning);
-
-    for (int i = 0; i < num_threads; i++)
+    int num_workers = num_tasks == 1 ? 1 : (num_tasks - 1);
+    printf("%d\n", num_workers);
+    int points = total_points / num_workers;
+    int count = 0;
+    int total_count;
+    
+    struct timeval begin;
+    if (rank == master)
     {
-        counts[i] = 0;
-        pthread_create(&threads[i], NULL, throw_darts, &counts[i]);
+        begin = current_timeval();
+    }
+    else if (rank != master || num_tasks == 1)
+    {
+        if (rank == 1 || num_tasks == 1)
+        {
+            points += total_points % num_workers;
+        }
+        
+        for (int i = 1; i <= points; i++)
+        {
+            double x = rand_coord();
+            double y = rand_coord();
+            count += x * x + y * y <= 0.25;
+        }    
     }
 
-    for (int i = 0; i < num_threads; i++)
-    {
-        pthread_join(threads[i], NULL);
-    }
+    MPI_Reduce(&count, &total_count, 1, MPI_INT, MPI_SUM, master, MPI_COMM_WORLD);
     
-    int total_count = 0;
-    for (int i = 0; i < num_threads; i++)
+    if (num_tasks == 1)
     {
-        total_count += counts[i];
+        total_count = count;
     }
- 
-    double pi = approx_pi(total_count, points_per_thread * num_threads);
-    
-    time(&end);
 
-    print_counts(counts, num_threads);
+    if (rank == master)
+    {
+        struct timeval end = current_timeval();
+        printf("With %d processes pi ~ %f in %ld \u03BCs\n", num_tasks,
+                approx_pi(total_count, total_points), timeval_diff_us(&end, &begin));
+    }
 
-    printf("\npi ~ %f\nTime elapsed: %dms", pi, (int)(end - beginning));
+    MPI_Finalize();
 
     return 0;
 }
@@ -63,30 +84,20 @@ double approx_pi(int inside, int total)
     return 4.0 * inside / total;
 }
 
-double rand_norm(void)
+struct timeval current_timeval(void)
 {
-    return ((double)rand()) / RAND_MAX;
+    struct timeval t;
+    gettimeofday(&t, NULL);
+    return t;
 }
 
-void *throw_darts(void *count)
+long timeval_diff_us(struct timeval *end, struct timeval *begin)
 {
-    int *icount = (int*) count;
-    for (int i = 0; i < points_per_thread; i++)
-    {
-        double x = rand_norm() - 0.5;
-        double y = rand_norm() - 0.5;
-        *icount += x * x + y * y <= 0.25;
-    }
-
-    return NULL;
+    return (end->tv_sec - begin->tv_sec) * 1000000 + end->tv_usec - begin->tv_usec;
 }
 
-void print_counts(int counts[], int n)
+double rand_coord(void)
 {
-    printf("Thread\tCount\n");
-    for (int i = 0; i < n; i++)
-    {
-        printf("%d\t%d\n", i, *(counts + i));
-    }
+    return ((double)rand()) / RAND_MAX - 0.5;
 }
 
