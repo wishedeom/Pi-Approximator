@@ -7,22 +7,29 @@
  *  how many points are in a circle of radius 1/2 to the total number of points.
  */
 
+// Libraries
 #include <mpi.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
 #include <time.h>
 
+#include <sys/time.h>
+
+
+// Global constants
 const int total_points = 1000000;
 const int master = 0;
 
+
+// Function prototypes
 double approx_pi(int inside, int total);
 struct timeval current_timeval(void);
 long timeval_diff_us(struct timeval *begin, struct timeval *end);
 double rand_coord(void);
 
 
+// Program entry point
 int main(int argc, char *argv[])
 {
     int rank,       // 0 for master, other for worker
@@ -35,7 +42,6 @@ int main(int argc, char *argv[])
     srand(rank | time(NULL));
     
     int num_workers = num_tasks == 1 ? 1 : (num_tasks - 1);
-    printf("%d\n", num_workers);
     int points = total_points / num_workers;
     int count = 0;
     int total_count;
@@ -79,11 +85,16 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+
+// Given a number of points inside a square and the number of points that
+// land inside an inscribed circle, approximates the value of pi
 double approx_pi(int inside, int total)
 {
     return 4.0 * inside / total;
 }
 
+
+// Returns a timeval struct representing the current time since the epoch
 struct timeval current_timeval(void)
 {
     struct timeval t;
@@ -91,11 +102,14 @@ struct timeval current_timeval(void)
     return t;
 }
 
+// Computes the difference between two timeval structs in microseconds
 long timeval_diff_us(struct timeval *end, struct timeval *begin)
 {
     return (end->tv_sec - begin->tv_sec) * 1000000 + end->tv_usec - begin->tv_usec;
 }
 
+// Generates a (uniformly distributed) random floating-point number
+// in the interval [-0.5, 0.5]
 double rand_coord(void)
 {
     return ((double)rand()) / RAND_MAX - 0.5;
