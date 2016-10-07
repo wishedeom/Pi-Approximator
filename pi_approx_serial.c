@@ -3,14 +3,13 @@
  *  COMP 428 - Parallel Programming
  *  Concordia University
  *
- *  PARALLEL VERSION
+ *  SERIAL VERSION
  *
  *  This program approximates pi by generating random points in a 1 x 1 square and comparing
  *  how many points are in a circle of radius 1/2 to the total number of points.
  */
 
 // Libraries
-#include <mpi.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,8 +20,6 @@
 
 // Global constants
 const int total_points = 1000000;
-const int master = 0;
-
 
 // Function prototypes
 double approx_pi(int inside, int total);
@@ -34,55 +31,21 @@ double rand_coord(void);
 // Program entry point
 int main(int argc, char *argv[])
 {
-    int rank,       // 0 for master, other for worker
-        num_tasks;
-
-    MPI_Init(&argc, &argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &num_tasks);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    srand(rank | time(NULL));
+    srand(time(NULL));
     
-    int num_workers = num_tasks == 1 ? 1 : (num_tasks - 1);
-    int points = total_points / num_workers;
     int count = 0;
-    int total_count;
     
     struct timeval begin;
-    if (rank == master)
+    begin = current_timeval();
+    for (int i = 1; i <= total_points; i++)
     {
-        begin = current_timeval();
-    }
-    else if (rank != master || num_tasks == 1)
-    {
-        if (rank == 1 || num_tasks == 1)
-        {
-            points += total_points % num_workers;
-        }
-        
-        for (int i = 1; i <= points; i++)
-        {
-            double x = rand_coord();
-            double y = rand_coord();
-            count += x * x + y * y <= 0.25;
-        }    
-    }
+        double x = rand_coord();
+        double y = rand_coord();
+        count += x * x + y * y <= 0.25;
+    }    
 
-    MPI_Reduce(&count, &total_count, 1, MPI_INT, MPI_SUM, master, MPI_COMM_WORLD);
-    
-    if (num_tasks == 1)
-    {
-        total_count = count;
-    }
-
-    if (rank == master)
-    {
-        struct timeval end = current_timeval();
-        printf("With %d processes pi ~ %f in %ld \u03BCs\n", num_tasks,
-                approx_pi(total_count, total_points), timeval_diff_us(&end, &begin));
-    }
-
-    MPI_Finalize();
+    struct timeval end = current_timeval();
+    printf("pi ~ %f in %ld \u03BCs\n", approx_pi(count, total_points), timeval_diff_us(&end, &begin));
 
     return 0;
 }
